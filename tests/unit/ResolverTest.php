@@ -33,9 +33,9 @@ final class ResolverTest extends TestCase
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), ['hello']);
 
-        self::assertSame($service, $args[0]);
-        self::assertSame('hello', $args[1]);
-        self::assertSame(42, $args[2]);
+        self::assertSame($service, $args['service']);
+        self::assertSame('hello', $args['value']);
+        self::assertSame(42, $args['number']);
     }
 
     #[Test]
@@ -48,9 +48,9 @@ final class ResolverTest extends TestCase
 
         $args = $resolver->resolve($this->constructorOf(NamedConsumer::class), []);
 
-        self::assertSame('admin', $args[0]);
-        self::assertSame('secret', $args[1]);
-        self::assertSame(3306, $args[2]);
+        self::assertSame('admin', $args['username']);
+        self::assertSame('secret', $args['password']);
+        self::assertSame(3306, $args['port']);
     }
 
     #[Test]
@@ -65,9 +65,9 @@ final class ResolverTest extends TestCase
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), []);
 
-        self::assertSame($service, $args[0]);
-        self::assertSame('named', $args[1]);
-        self::assertSame(42, $args[2]);
+        self::assertSame($service, $args['service']);
+        self::assertSame('named', $args['value']);
+        self::assertSame(42, $args['number']);
     }
 
     #[Test]
@@ -79,8 +79,8 @@ final class ResolverTest extends TestCase
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), [$explicit, 'hello']);
 
-        self::assertSame($explicit, $args[0]);
-        self::assertSame('hello', $args[1]);
+        self::assertSame($explicit, $args['service']);
+        self::assertSame('hello', $args['value']);
     }
 
     #[Test]
@@ -90,11 +90,11 @@ final class ResolverTest extends TestCase
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), ['positional']);
 
-        self::assertSame('positional', $args[0]);
+        self::assertSame('positional', $args['service']);
     }
 
     #[Test]
-    public function itShouldPassThroughWhenNoParams(): void
+    public function itShouldReturnEmptyWhenNoParams(): void
     {
         $resolver = new Resolver(new ArrayContainer());
         $fn = new ReflectionFunction(static function (): void {
@@ -205,9 +205,9 @@ final class ResolverTest extends TestCase
             ['value' => 'explicit'],
         );
 
-        self::assertSame($service, $args[0]);
-        self::assertSame('explicit', $args[1]);
-        self::assertSame(42, $args[2]);
+        self::assertSame($service, $args['service']);
+        self::assertSame('explicit', $args['value']);
+        self::assertSame(42, $args['number']);
     }
 
     #[Test]
@@ -220,9 +220,9 @@ final class ResolverTest extends TestCase
             ['username' => 'admin'],
         );
 
-        self::assertSame('admin', $args[0]);
-        self::assertSame('auto-secret', $args[1]);
-        self::assertSame(3306, $args[2]);
+        self::assertSame('admin', $args['username']);
+        self::assertSame('auto-secret', $args['password']);
+        self::assertSame(3306, $args['port']);
     }
 
     #[Test]
@@ -236,9 +236,9 @@ final class ResolverTest extends TestCase
             [],
         );
 
-        self::assertSame($service, $args[0]);
-        self::assertNull($args[1]);
-        self::assertSame(42, $args[2]);
+        self::assertSame($service, $args['service']);
+        self::assertNull($args['value']);
+        self::assertSame(42, $args['number']);
     }
 
     /** @param class-string $class */

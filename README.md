@@ -29,10 +29,13 @@ function notify(Mailer $mailer, Logger $logger, string $to, string $subject = 'H
 
 $resolver = new Resolver($container);
 $args = $resolver->resolve(new ReflectionFunction('notify'), ['bob@example.com']);
-// $mailer from container (by type)
-// $logger from container (by type)
-// $to = 'bob@example.com' (positional)
-// $subject = 'Hi' (default)
+// ['mailer' => Mailer, 'logger' => Logger, 'to' => 'bob@example.com', 'subject' => 'Hi']
+```
+
+Results are keyed by parameter name, so you can spread them with named arguments:
+
+```php
+notify(...$args);
 ```
 
 ### Resolve with named arguments
@@ -79,8 +82,8 @@ Resolver::acceptsType($reflection, LoggerInterface::class); // true/false
 
 | Method                                  | Type     | Description                                          |
 |-----------------------------------------|----------|------------------------------------------------------|
-| `resolve($reflection, $positional)`     | instance | Resolve parameters from positional args + containers |
-| `resolveNamed($reflection, $named)`     | instance | Resolve from named args (priority) + containers      |
+| `resolve($reflection, $positional)`     | instance | Resolve parameters from positional args + containers. Returns `array<string, mixed>` keyed by parameter name |
+| `resolveNamed($reflection, $named)`     | instance | Resolve from named args (priority) + containers. Returns `array<string, mixed>` keyed by parameter name     |
 | `reflectCallable($callable)`            | static   | Any callable to `ReflectionFunctionAbstract`         |
 | `toNamedArgs($reflection, $positional)` | static   | Positional array to name-keyed map                   |
 | `acceptsType($reflection, $type)`       | static   | Check if any parameter accepts a type                |
