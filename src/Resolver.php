@@ -19,7 +19,6 @@ use ReflectionNamedType;
 use ReflectionParameter;
 
 use function array_key_exists;
-use function array_values;
 use function assert;
 use function count;
 use function is_a;
@@ -36,12 +35,13 @@ use function str_contains;
  */
 final readonly class Resolver
 {
-    /** @var array<int, ContainerInterface> */
+    /** @var array<int|string, ContainerInterface> */
     private array $containers;
 
+    /** @param array<int|string, ContainerInterface> ...$containers */
     public function __construct(ContainerInterface ...$containers)
     {
-        $this->containers = array_values($containers);
+        $this->containers = $containers;
     }
 
     /**
@@ -49,7 +49,7 @@ final readonly class Resolver
      *
      * @param array<int, mixed> $arguments User-provided positional arguments
      *
-     * @return array<int, mixed> Resolved arguments
+     * @return array<int, mixed>|array<string, mixed> Resolved arguments keyed by parameter name
      */
     public function resolve(ReflectionFunctionAbstract $reflection, array $arguments): array
     {
@@ -63,28 +63,29 @@ final readonly class Resolver
         $argCount = count($arguments);
 
         foreach ($params as $param) {
+            $paramName = $param->getName();
             $typeName = self::typeName($param);
 
             // User override: positional arg of matching type beats container
             if ($typeName !== null && isset($arguments[$argIndex]) && $arguments[$argIndex] instanceof $typeName) {
-                $resolvedArgs[] = $arguments[$argIndex++];
+                $resolvedArgs[$paramName] = $arguments[$argIndex++];
 
                 continue;
             }
 
-            [$found, $value] = $this->fromContainers($param->getName(), $typeName);
+            [$found, $value] = $this->fromContainers($paramName, $typeName);
             if ($found) {
-                $resolvedArgs[] = $value;
+                $resolvedArgs[$paramName] = $value;
 
                 continue;
             }
 
             if ($argIndex < $argCount) {
-                $resolvedArgs[] = $arguments[$argIndex++];
+                $resolvedArgs[$paramName] = $arguments[$argIndex++];
             } elseif ($param->isDefaultValueAvailable()) {
-                $resolvedArgs[] = $param->getDefaultValue();
+                $resolvedArgs[$paramName] = $param->getDefaultValue();
             } else {
-                $resolvedArgs[] = null;
+                $resolvedArgs[$paramName] = null;
             }
         }
 
@@ -97,7 +98,7 @@ final readonly class Resolver
      *
      * @param array<string, mixed> $namedArgs
      *
-     * @return array<int, mixed> Resolved arguments
+     * @return array<string, mixed> Resolved arguments keyed by parameter name
      */
     public function resolveNamed(ReflectionFunctionAbstract $reflection, array $namedArgs): array
     {
@@ -112,19 +113,19 @@ final readonly class Resolver
             $paramName = $param->getName();
 
             if (array_key_exists($paramName, $namedArgs)) {
-                $resolvedArgs[] = $namedArgs[$paramName];
+                $resolvedArgs[$paramName] = $namedArgs[$paramName];
 
                 continue;
             }
 
             [$found, $value] = $this->fromContainers($paramName, self::typeName($param));
             if ($found) {
-                $resolvedArgs[] = $value;
+                $resolvedArgs[$paramName] = $value;
 
                 continue;
             }
 
-            $resolvedArgs[] = $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null;
+            $resolvedArgs[$paramName] = $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null;
         }
 
         return $resolvedArgs;
