@@ -1,0 +1,52 @@
+{
+    "name": "respect/parameter",
+    "description": "Resolves function/constructor parameters via type and name lookup",
+    "keywords": ["respect", "parameter", "resolver", "psr-11", "autowiring", "dependency-injection"],
+    "type": "library",
+    "license": "ISC",
+    "authors": [
+        {
+            "name": "Respect/Parameter Contributors",
+            "homepage": "https://github.com/Respect/Parameter/graphs/contributors"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "psr/container": "^2.0"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-deprecation-rules": "^2.0",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^12.5",
+        "respect/coding-standard": "^5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Respect\\Parameter\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Respect\\Parameter\\Test\\": "tests/",
+            "Respect\\Parameter\\Test\\Fixtures\\": "tests/fixtures"
+        }
+    },
+    "scripts": {
+        "phpcs": "vendor/bin/phpcs",
+        "phpstan": "vendor/bin/phpstan",
+        "phpunit": "vendor/bin/phpunit",
+        "qa": [
+            "@phpcs",
+            "@phpstan",
+            "@phpunit"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    }
+}
