@@ -28,20 +28,15 @@ use function is_string;
 use function str_contains;
 
 /**
- * Resolves function/constructor parameters from PSR-11 containers.
+ * Resolves function/constructor parameters from a PSR-11 container.
  *
- * For each parameter, tries by type (non-builtin) then by name against each
- * container in order. Falls through to positional arguments, then defaults.
+ * For each parameter, tries by type (non-builtin) against the container.
+ * Falls through to positional arguments, then defaults.
  */
 final readonly class Resolver
 {
-    /** @var array<int|string, ContainerInterface> */
-    private array $containers;
-
-    /** @param array<int|string, ContainerInterface> ...$containers */
-    public function __construct(ContainerInterface ...$containers)
+    public function __construct(private ContainerInterface $container)
     {
-        $this->containers = $containers;
     }
 
     /**
@@ -66,16 +61,14 @@ final readonly class Resolver
             $paramName = $param->getName();
             $typeName = self::typeName($param);
 
-            // User override: positional arg of matching type beats container
             if ($typeName !== null && isset($arguments[$argIndex]) && $arguments[$argIndex] instanceof $typeName) {
                 $resolvedArgs[$paramName] = $arguments[$argIndex++];
 
                 continue;
             }
 
-            [$found, $value] = $this->fromContainers($paramName, $typeName);
-            if ($found) {
-                $resolvedArgs[$paramName] = $value;
+            if ($typeName !== null && $this->container->has($typeName)) {
+                $resolvedArgs[$paramName] = $this->container->get($typeName);
 
                 continue;
             }
@@ -93,7 +86,7 @@ final readonly class Resolver
     }
 
     /**
-     * Resolve parameters from explicit named args + containers.
+     * Resolve parameters from explicit named args + container.
      * Named args take precedence over container values.
      *
      * @param array<string, mixed> $namedArgs
@@ -118,9 +111,10 @@ final readonly class Resolver
                 continue;
             }
 
-            [$found, $value] = $this->fromContainers($paramName, self::typeName($param));
-            if ($found) {
-                $resolvedArgs[$paramName] = $value;
+            $typeName = self::typeName($param);
+
+            if ($typeName !== null && $this->container->has($typeName)) {
+                $resolvedArgs[$paramName] = $this->container->get($typeName);
 
                 continue;
             }
@@ -131,28 +125,6 @@ final readonly class Resolver
         return $resolvedArgs;
     }
 
-    /**
-     * Convert positional arguments to a name-keyed map using reflection param names.
-     *
-     * @param array<int, mixed> $positional
-     *
-     * @return array<string, mixed>
-     */
-    public static function toNamedArgs(ReflectionFunctionAbstract $reflection, array $positional): array
-    {
-        $named = [];
-        foreach ($reflection->getParameters() as $param) {
-            $position = $param->getPosition();
-            if (!isset($positional[$position])) {
-                continue;
-            }
-
-            $named[$param->getName()] = $positional[$position];
-        }
-
-        return $named;
-    }
-
     /** Reflect any callable into its ReflectionFunctionAbstract. */
     public static function reflectCallable(callable $callable): ReflectionFunctionAbstract
     {
@@ -161,9 +133,9 @@ final readonly class Resolver
         }
 
         if (is_array($callable)) {
-            /** @var array{object|string, string} $callable */ // phpcs:ignore SlevomatCodingStandard.Commenting.InlineDocCommentDeclaration.MissingVariable
+            /** @var array{object|class-string, string} $callable */ // phpcs:ignore SlevomatCodingStandard.Commenting.InlineDocCommentDeclaration.MissingVariable
 
-            return new ReflectionMethod($callable[0], $callable[1]);
+            return new ReflectionMethod(...$callable);
         }
 
         if (is_object($callable)) {
@@ -179,7 +151,7 @@ final readonly class Resolver
         return new ReflectionFunction($callable);
     }
 
-    /** Check if any parameter of the function accepts a given type. */
+    /** @param class-string $type */
     public static function acceptsType(ReflectionFunctionAbstract $reflection, string $type): bool
     {
         foreach ($reflection->getParameters() as $param) {
@@ -193,26 +165,13 @@ final readonly class Resolver
         return false;
     }
 
+    /** @return class-string|null */
     private static function typeName(ReflectionParameter $param): string|null
     {
         $type = $param->getType();
 
+        /** @phpstan-ignore return.type */
         return $type instanceof ReflectionNamedType && !$type->isBuiltin() ? $type->getName() : null;
-    }
-
-    /** @return array{bool, mixed} */
-    private function fromContainers(string $paramName, string|null $typeName): array
-    {
-        foreach ($this->containers as $container) {
-            if ($typeName !== null && $container->has($typeName)) {
-                return [true, $container->get($typeName)];
-            }
-
-            if ($container->has($paramName)) {
-                return [true, $container->get($paramName)];
-            }
-        }
-
-        return [false, null];
+        /* Ignore Reason: !isBuiltin() guarantees class-string */
     }
 }

@@ -18,7 +18,6 @@ use ReflectionFunction;
 use ReflectionMethod;
 use Respect\Parameter\Resolver;
 use Respect\Parameter\Test\Fixtures\ArrayContainer;
-use Respect\Parameter\Test\Fixtures\NamedConsumer;
 use Respect\Parameter\Test\Fixtures\SampleService;
 use Respect\Parameter\Test\Fixtures\ServiceConsumer;
 
@@ -35,38 +34,6 @@ final class ResolverTest extends TestCase
 
         self::assertSame($service, $args['service']);
         self::assertSame('hello', $args['value']);
-        self::assertSame(42, $args['number']);
-    }
-
-    #[Test]
-    public function itShouldResolveByName(): void
-    {
-        $resolver = new Resolver(new ArrayContainer([
-            'username' => 'admin',
-            'password' => 'secret',
-        ]));
-
-        $args = $resolver->resolve($this->constructorOf(NamedConsumer::class), []);
-
-        self::assertSame('admin', $args['username']);
-        self::assertSame('secret', $args['password']);
-        self::assertSame(3306, $args['port']);
-    }
-
-    #[Test]
-    public function itShouldTryMultipleContainers(): void
-    {
-        $service = new SampleService();
-
-        $resolver = new Resolver(
-            new ArrayContainer(['value' => 'named']),
-            new ArrayContainer([SampleService::class => $service]),
-        );
-
-        $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), []);
-
-        self::assertSame($service, $args['service']);
-        self::assertSame('named', $args['value']);
         self::assertSame(42, $args['number']);
     }
 
@@ -94,7 +61,7 @@ final class ResolverTest extends TestCase
     }
 
     #[Test]
-    public function itShouldReturnEmptyWhenNoParams(): void
+    public function itShouldPassThroughWhenNoParams(): void
     {
         $resolver = new Resolver(new ArrayContainer());
         $fn = new ReflectionFunction(static function (): void {
@@ -103,26 +70,6 @@ final class ResolverTest extends TestCase
         $args = $resolver->resolve($fn, ['a', 'b']);
 
         self::assertSame(['a', 'b'], $args);
-    }
-
-    #[Test]
-    public function itShouldConvertPositionalToNamed(): void
-    {
-        $constructor = $this->constructorOf(NamedConsumer::class);
-
-        $named = Resolver::toNamedArgs($constructor, ['admin', 'secret', 3306]);
-
-        self::assertSame(['username' => 'admin', 'password' => 'secret', 'port' => 3306], $named);
-    }
-
-    #[Test]
-    public function itShouldConvertPartialPositionalToNamed(): void
-    {
-        $constructor = $this->constructorOf(NamedConsumer::class);
-
-        $named = Resolver::toNamedArgs($constructor, ['admin']);
-
-        self::assertSame(['username' => 'admin'], $named);
     }
 
     #[Test]
@@ -195,10 +142,7 @@ final class ResolverTest extends TestCase
     public function itShouldResolveNamedArgsWithPrecedenceOverContainer(): void
     {
         $service = new SampleService();
-        $resolver = new Resolver(new ArrayContainer([
-            SampleService::class => $service,
-            'value' => 'from-container',
-        ]));
+        $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
 
         $args = $resolver->resolveNamed(
             $this->constructorOf(ServiceConsumer::class),
@@ -208,21 +152,6 @@ final class ResolverTest extends TestCase
         self::assertSame($service, $args['service']);
         self::assertSame('explicit', $args['value']);
         self::assertSame(42, $args['number']);
-    }
-
-    #[Test]
-    public function itShouldResolveNamedArgsFillingGapsFromContainer(): void
-    {
-        $resolver = new Resolver(new ArrayContainer(['password' => 'auto-secret']));
-
-        $args = $resolver->resolveNamed(
-            $this->constructorOf(NamedConsumer::class),
-            ['username' => 'admin'],
-        );
-
-        self::assertSame('admin', $args['username']);
-        self::assertSame('auto-secret', $args['password']);
-        self::assertSame(3306, $args['port']);
     }
 
     #[Test]
