@@ -50,6 +50,46 @@ $args = $resolver->resolveNamed(
 // Named args take precedence, gaps filled from container by name and type
 ```
 
+### Augment arguments
+
+Use the augmenter when the arguments must stay exactly as the caller provided
+them (e.g. factories that pass user input straight to a constructor) and the
+container should only supply the missing services:
+
+```php
+use Respect\Parameter\ContainerAugmenter;
+
+final class Notifier
+{
+    public function __construct(
+        private string $channel,
+        private Mailer|null $mailer = null,
+    ) {
+    }
+}
+
+$augmenter = new ContainerAugmenter($container);
+$args = $augmenter->augment($constructor, ['slack']);
+// ['slack', 'mailer' => Mailer] — positional args untouched, gaps named
+```
+
+Variadic, builtin-typed, and already-filled parameters are never augmented.
+Extra arguments (e.g. for variadic parameters) pass through unchanged, and
+missing arguments are never padded with defaults or `null`.
+
+#### Unresolvable types
+
+Value-like classes should never be served by the container, even when it can
+provide them — a container-cached `DateTimeImmutable` is a frozen clock.
+List them at construction to exclude them from container lookups:
+
+```php
+$augmenter = new ContainerAugmenter($container, [
+    DateTimeImmutable::class,
+    DateTimeInterface::class,
+]);
+```
+
 ### Reflect any callable
 
 Convert any callable form into a `ReflectionFunctionAbstract`:
@@ -76,6 +116,7 @@ Resolver::acceptsType($reflection, LoggerInterface::class); // true/false
 |-----------------------------------------|----------|------------------------------------------------------|
 | `resolve($reflection, $positional)`     | instance | Resolve parameters from positional args + container. Returns `array<string, mixed>` keyed by parameter name |
 | `resolveNamed($reflection, $named)`     | instance | Resolve from named args (priority) + container. Returns `array<string, mixed>` keyed by parameter name     |
+| `augment($reflection, $arguments)`      | instance | Fill unfilled parameters from the container as named args; given arguments stay untouched                   |
 | `reflectCallable($callable)`            | static   | Any callable to `ReflectionFunctionAbstract`         |
 | `acceptsType($reflection, $type)`       | static   | Check if any parameter accepts a type                |
 
