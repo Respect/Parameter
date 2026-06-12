@@ -46,6 +46,11 @@
             "@phpunit"
         ]
     },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "2.0.x-dev"
+        }
+    },
     "config": {
         "sort-packages": true,
         "allow-plugins": {
