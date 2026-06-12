@@ -31,7 +31,10 @@
         "psr-4": {
             "Respect\\Parameter\\Test\\": "tests/",
             "Respect\\Parameter\\Test\\Fixtures\\": "tests/fixtures"
-        }
+        },
+        "files": [
+            "tests/fixtures/functions.php"
+        ]
     },
     "scripts": {
         "phpcs": "vendor/bin/phpcs",
