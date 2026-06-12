@@ -95,19 +95,19 @@ $augmenter = new ContainerAugmenter($container, [
 Convert any callable form into a `ReflectionFunctionAbstract`:
 
 ```php
-use Respect\Parameter\Resolver;
+use Respect\Parameter\Reflector;
 
-Resolver::reflectCallable(fn() => ...);                  // Closure
-Resolver::reflectCallable([$obj, 'method']);             // Array callable
-Resolver::reflectCallable(new Invocable());              // __invoke object
-Resolver::reflectCallable('strlen');                     // Function name
-Resolver::reflectCallable('DateTime::createFromFormat'); // Static method
+Reflector::reflectCallable(fn() => ...);                  // Closure
+Reflector::reflectCallable([$obj, 'method']);             // Array callable
+Reflector::reflectCallable(new Invocable());              // __invoke object
+Reflector::reflectCallable('strlen');                     // Function name
+Reflector::reflectCallable('DateTime::createFromFormat'); // Static method
 ```
 
 ### Check accepted types
 
 ```php
-Resolver::acceptsType($reflection, LoggerInterface::class); // true/false
+Reflector::acceptsType($reflection, LoggerInterface::class); // true/false
 ```
 
 ## API
