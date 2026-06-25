@@ -123,20 +123,6 @@ final readonly class ContainerResolver implements Resolver
         return $resolved;
     }
 
-    /**
-     * Resolve arguments, with named arguments taking precedence over the container.
-     *
-     * @deprecated Use {@see resolve()} instead; it now handles named arguments directly.
-     *
-     * @param array<int|string, mixed> $arguments
-     *
-     * @return list<mixed>
-     */
-    public function resolveNamed(ReflectionFunctionAbstract $reflection, array $arguments): array
-    {
-        return $this->resolve($reflection, $arguments);
-    }
-
     /** Reflect any callable into its ReflectionFunctionAbstract. */
     public static function reflectCallable(callable $callable): ReflectionFunctionAbstract
     {
