@@ -24,13 +24,13 @@ For each parameter the resolver tries, in order:
 A trailing **variadic** parameter receives a matching named argument (if any) followed by every remaining positional argument.
 
 ```php
-use Respect\Parameter\Resolver;
+use Respect\Parameter\ContainerResolver;
 
 function notify(Mailer $mailer, Logger $logger, string $to, string $subject = 'Hi') {
     // ...
 }
 
-$resolver = new Resolver($container);
+$resolver = new ContainerResolver($container);
 $args = $resolver->resolve(new ReflectionFunction('notify'), ['bob@example.com']);
 // [Mailer, Logger, 'bob@example.com', 'Hi']  — ordered, ready to splat
 ```
@@ -54,15 +54,15 @@ $args = $resolver->resolve($constructor, ['username' => 'admin']);
 
 ### Bind to the interface
 
-Type-hint `ParameterResolver` (the `resolve()` contract) rather than the concrete `Resolver` to stay
+Type-hint `Resolver` (the `resolve()` contract) rather than the concrete `ContainerResolver` to stay
 decoupled from the implementation:
 
 ```php
-use Respect\Parameter\ParameterResolver;
+use Respect\Parameter\Resolver;
 
 final class Factory
 {
-    public function __construct(private ParameterResolver $resolver)
+    public function __construct(private Resolver $resolver)
     {
     }
 }
@@ -73,19 +73,19 @@ final class Factory
 Convert any callable form into a `ReflectionFunctionAbstract`:
 
 ```php
-use Respect\Parameter\Resolver;
+use Respect\Parameter\ContainerResolver;
 
-Resolver::reflectCallable(fn() => ...);                  // Closure
-Resolver::reflectCallable([$obj, 'method']);             // Array callable
-Resolver::reflectCallable(new Invocable());              // __invoke object
-Resolver::reflectCallable('strlen');                     // Function name
-Resolver::reflectCallable('DateTime::createFromFormat'); // Static method
+ContainerResolver::reflectCallable(fn() => ...);                  // Closure
+ContainerResolver::reflectCallable([$obj, 'method']);             // Array callable
+ContainerResolver::reflectCallable(new Invocable());              // __invoke object
+ContainerResolver::reflectCallable('strlen');                     // Function name
+ContainerResolver::reflectCallable('DateTime::createFromFormat'); // Static method
 ```
 
 ### Check accepted types
 
 ```php
-Resolver::acceptsType($reflection, LoggerInterface::class); // true/false
+ContainerResolver::acceptsType($reflection, LoggerInterface::class); // true/false
 ```
 
 ## API
@@ -96,7 +96,7 @@ Resolver::acceptsType($reflection, LoggerInterface::class); // true/false
 | `reflectCallable($callable)`            | static   | Any callable to `ReflectionFunctionAbstract`                                                      |
 | `acceptsType($reflection, $type)`       | static   | Check if any parameter accepts a type                                                             |
 
-`Resolver` implements `ParameterResolver`.
+`ContainerResolver` implements `Resolver`.
 
 ## License
 
