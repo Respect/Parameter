@@ -12,6 +12,8 @@ namespace Respect\Parameter;
 
 use Closure;
 use Psr\Container\ContainerInterface;
+use Psr\SimpleCache\CacheInterface;
+use Psr\SimpleCache\InvalidArgumentException;
 use ReflectionFunction;
 use ReflectionFunctionAbstract;
 use ReflectionMethod;
@@ -27,6 +29,7 @@ use function is_array;
 use function is_int;
 use function is_object;
 use function is_string;
+use function md5;
 use function str_contains;
 
 /**
@@ -38,8 +41,12 @@ use function str_contains;
  */
 final readonly class Resolver implements ParameterResolver
 {
-    public function __construct(private ContainerInterface $container)
-    {
+    private const string CACHE_KEY_PREFIX = 'respect.parameter.spec.';
+
+    public function __construct(
+        private ContainerInterface $container,
+        private CacheInterface $specCache = new InMemoryCache(),
+    ) {
     }
 
     /**
@@ -57,8 +64,8 @@ final readonly class Resolver implements ParameterResolver
      */
     public function resolve(ReflectionFunctionAbstract $reflection, array $arguments): array
     {
-        $parameters = $reflection->getParameters();
-        if ($parameters === []) {
+        $spec = $this->specFor($reflection);
+        if ($spec === []) {
             return array_values($arguments);
         }
 
@@ -72,20 +79,28 @@ final readonly class Resolver implements ParameterResolver
             }
         }
 
+        if (
+            $named === []
+            && count($positional) === count($spec)
+            && self::allPositionalsAlign($spec, $positional, $this->container)
+        ) {
+            return $positional;
+        }
+
         $resolved = [];
-        $index = 0;
+        $posIndex = 0;
         $count = count($positional);
 
-        foreach ($parameters as $param) {
-            $name = $param->getName();
+        foreach ($spec as $paramIndex => $param) {
+            $name = $param['name'];
 
-            if ($param->isVariadic()) {
+            if ($param['variadic']) {
                 if (array_key_exists($name, $named)) {
                     $resolved[] = $named[$name];
                 }
 
-                while ($index < $count) {
-                    $resolved[] = $positional[$index++];
+                while ($posIndex < $count) {
+                    $resolved[] = $positional[$posIndex++];
                 }
 
                 break;
@@ -97,10 +112,10 @@ final readonly class Resolver implements ParameterResolver
                 continue;
             }
 
-            $type = self::typeName($param);
+            $type = $param['type'];
 
-            if ($type !== null && isset($positional[$index]) && $positional[$index] instanceof $type) {
-                $resolved[] = $positional[$index++];
+            if ($type !== null && isset($positional[$posIndex]) && $positional[$posIndex] instanceof $type) {
+                $resolved[] = $positional[$posIndex++];
 
                 continue;
             }
@@ -111,10 +126,10 @@ final readonly class Resolver implements ParameterResolver
                 continue;
             }
 
-            if ($index < $count) {
-                $resolved[] = $positional[$index++];
-            } elseif ($param->isDefaultValueAvailable()) {
-                $resolved[] = $param->getDefaultValue();
+            if ($posIndex < $count) {
+                $resolved[] = $positional[$posIndex++];
+            } elseif ($param['hasDefault']) {
+                $resolved[] = $reflection->getParameters()[$paramIndex]->getDefaultValue();
             } else {
                 $resolved[] = null;
             }
@@ -185,5 +200,94 @@ final readonly class Resolver implements ParameterResolver
         /** @phpstan-ignore return.type */
         return $type instanceof ReflectionNamedType && !$type->isBuiltin() ? $type->getName() : null;
         /* Ignore Reason: !isBuiltin() guarantees class-string */
+    }
+
+    /** @return list<array{name: string, type: class-string|null, variadic: bool, hasDefault: bool}> */
+    private function specFor(ReflectionFunctionAbstract $reflection): array
+    {
+        $key = self::CACHE_KEY_PREFIX . md5($this->cacheKey($reflection));
+
+        try {
+            /** @var list<array{name: string, type: class-string|null, variadic: bool, hasDefault: bool}> $cached */
+            $cached = $this->specCache->get($key);
+        } catch (InvalidArgumentException) {
+            $cached = null;
+        }
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $spec = $this->buildSpec($reflection);
+
+        try {
+            $this->specCache->set($key, $spec);
+        } catch (InvalidArgumentException) {
+        }
+
+        return $spec;
+    }
+
+    /** @return non-empty-string */
+    private function cacheKey(ReflectionFunctionAbstract $reflection): string
+    {
+        if ($reflection instanceof ReflectionMethod) {
+            return $reflection->getDeclaringClass()->getName() . '::' . $reflection->getName();
+        }
+
+        if ($reflection instanceof ReflectionFunction && $reflection->isClosure()) {
+            return $reflection->getFileName() . '::' . $reflection->getStartLine();
+        }
+
+        return $reflection->getName();
+    }
+
+    /** @return list<array{name: string, type: class-string|null, variadic: bool, hasDefault: bool}> */
+    private function buildSpec(ReflectionFunctionAbstract $reflection): array
+    {
+        $spec = [];
+        foreach ($reflection->getParameters() as $param) {
+            $spec[] = [
+                'name' => $param->getName(),
+                'type' => self::typeName($param),
+                'variadic' => $param->isVariadic(),
+                'hasDefault' => $param->isDefaultValueAvailable(),
+            ];
+        }
+
+        return $spec;
+    }
+
+    /**
+     * @param list<array{name: string, type: class-string|null, variadic: bool, hasDefault: bool}> $spec
+     * @param list<mixed> $positional
+     */
+    private static function allPositionalsAlign(array $spec, array $positional, ContainerInterface $container): bool
+    {
+        foreach ($spec as $i => $param) {
+            if ($param['variadic']) {
+                // A variadic consumes "the rest"; the count precondition
+                // (count($positional) === count($spec)) would leave exactly
+                // one positional for it, which is technically safe here, but
+                // bailing keeps the proof simple and the cost is negligible.
+                return false;
+            }
+
+            $type = $param['type'];
+
+            if ($type === null) {
+                continue;
+            }
+
+            if (isset($positional[$i]) && $positional[$i] instanceof $type) {
+                continue;
+            }
+
+            if ($container->has($type)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
