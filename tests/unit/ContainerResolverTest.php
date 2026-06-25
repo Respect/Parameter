@@ -16,27 +16,27 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionMethod;
-use Respect\Parameter\ParameterResolver;
+use Respect\Parameter\ContainerResolver;
 use Respect\Parameter\Resolver;
 use Respect\Parameter\Test\Fixtures\ArrayContainer;
 use Respect\Parameter\Test\Fixtures\SampleService;
 use Respect\Parameter\Test\Fixtures\ServiceConsumer;
 use Respect\Parameter\Test\Fixtures\VariadicConsumer;
 
-#[CoversClass(Resolver::class)]
-final class ResolverTest extends TestCase
+#[CoversClass(ContainerResolver::class)]
+final class ContainerResolverTest extends TestCase
 {
     #[Test]
-    public function itShouldImplementParameterResolver(): void
+    public function itShouldImplementResolver(): void
     {
-        self::assertInstanceOf(ParameterResolver::class, new Resolver(new ArrayContainer()));
+        self::assertInstanceOf(Resolver::class, new ContainerResolver(new ArrayContainer()));
     }
 
     #[Test]
     public function itShouldResolveByType(): void
     {
         $service = new SampleService();
-        $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
+        $resolver = new ContainerResolver(new ArrayContainer([SampleService::class => $service]));
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), ['hello']);
 
@@ -48,7 +48,7 @@ final class ResolverTest extends TestCase
     {
         $default = new SampleService();
         $explicit = new SampleService();
-        $resolver = new Resolver(new ArrayContainer([SampleService::class => $default]));
+        $resolver = new ContainerResolver(new ArrayContainer([SampleService::class => $default]));
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), [$explicit, 'hello']);
 
@@ -59,7 +59,7 @@ final class ResolverTest extends TestCase
     #[Test]
     public function itShouldFallThroughToPositionalArgs(): void
     {
-        $resolver = new Resolver(new ArrayContainer());
+        $resolver = new ContainerResolver(new ArrayContainer());
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), ['positional']);
 
@@ -69,7 +69,7 @@ final class ResolverTest extends TestCase
     #[Test]
     public function itShouldPassThroughWhenNoParams(): void
     {
-        $resolver = new Resolver(new ArrayContainer());
+        $resolver = new ContainerResolver(new ArrayContainer());
         $fn = new ReflectionFunction(static function (): void {
         });
 
@@ -83,8 +83,8 @@ final class ResolverTest extends TestCase
     {
         $constructor = $this->constructorOf(ServiceConsumer::class);
 
-        self::assertTrue(Resolver::acceptsType($constructor, SampleService::class));
-        self::assertFalse(Resolver::acceptsType($constructor, ArrayContainer::class));
+        self::assertTrue(ContainerResolver::acceptsType($constructor, SampleService::class));
+        self::assertFalse(ContainerResolver::acceptsType($constructor, ArrayContainer::class));
     }
 
     #[Test]
@@ -94,7 +94,7 @@ final class ResolverTest extends TestCase
             return $a;
         };
 
-        $reflection = Resolver::reflectCallable($fn);
+        $reflection = ContainerResolver::reflectCallable($fn);
 
         self::assertInstanceOf(ReflectionFunction::class, $reflection);
         self::assertSame('a', $reflection->getParameters()[0]->getName());
@@ -103,7 +103,7 @@ final class ResolverTest extends TestCase
     #[Test]
     public function itShouldReflectArrayCallable(): void
     {
-        $reflection = Resolver::reflectCallable([new ArrayContainer([]), 'has']);
+        $reflection = ContainerResolver::reflectCallable([new ArrayContainer([]), 'has']);
 
         self::assertInstanceOf(ReflectionMethod::class, $reflection);
         self::assertSame('has', $reflection->getName());
@@ -119,7 +119,7 @@ final class ResolverTest extends TestCase
             }
         };
 
-        $reflection = Resolver::reflectCallable($invocable);
+        $reflection = ContainerResolver::reflectCallable($invocable);
 
         self::assertInstanceOf(ReflectionMethod::class, $reflection);
         self::assertSame('__invoke', $reflection->getName());
@@ -129,7 +129,7 @@ final class ResolverTest extends TestCase
     #[Test]
     public function itShouldReflectNamedFunction(): void
     {
-        $reflection = Resolver::reflectCallable('strlen');
+        $reflection = ContainerResolver::reflectCallable('strlen');
 
         self::assertInstanceOf(ReflectionFunction::class, $reflection);
         self::assertSame('strlen', $reflection->getName());
@@ -138,7 +138,7 @@ final class ResolverTest extends TestCase
     #[Test]
     public function itShouldReflectStaticMethodString(): void
     {
-        $reflection = Resolver::reflectCallable('DateTime::createFromFormat');
+        $reflection = ContainerResolver::reflectCallable('DateTime::createFromFormat');
 
         self::assertInstanceOf(ReflectionMethod::class, $reflection);
         self::assertSame('createFromFormat', $reflection->getName());
@@ -147,7 +147,7 @@ final class ResolverTest extends TestCase
     #[Test]
     public function itShouldKeepDeprecatedResolveNamedAsAnAliasOfResolve(): void
     {
-        $resolver = new Resolver(new ArrayContainer([SampleService::class => new SampleService()]));
+        $resolver = new ContainerResolver(new ArrayContainer([SampleService::class => new SampleService()]));
         $constructor = $this->constructorOf(ServiceConsumer::class);
 
         self::assertSame(
@@ -160,7 +160,7 @@ final class ResolverTest extends TestCase
     public function itShouldExpandVariadicArguments(): void
     {
         $service = new SampleService();
-        $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
+        $resolver = new ContainerResolver(new ArrayContainer([SampleService::class => $service]));
 
         $args = $resolver->resolve($this->constructorOf(VariadicConsumer::class), [1, 2, 3]);
 
@@ -171,7 +171,7 @@ final class ResolverTest extends TestCase
     public function itShouldSupplyVariadicElementByName(): void
     {
         $service = new SampleService();
-        $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
+        $resolver = new ContainerResolver(new ArrayContainer([SampleService::class => $service]));
 
         $args = $resolver->resolve($this->constructorOf(VariadicConsumer::class), ['numbers' => 9]);
         $consumer = (new ReflectionClass(VariadicConsumer::class))->newInstanceArgs($args);
@@ -184,7 +184,7 @@ final class ResolverTest extends TestCase
     public function itShouldResolveArgumentsReadyToSplatIntoVariadicConstructor(): void
     {
         $service = new SampleService();
-        $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
+        $resolver = new ContainerResolver(new ArrayContainer([SampleService::class => $service]));
 
         $args = $resolver->resolve($this->constructorOf(VariadicConsumer::class), [1, 2, 3]);
         $consumer = (new ReflectionClass(VariadicConsumer::class))->newInstanceArgs($args);
@@ -197,7 +197,7 @@ final class ResolverTest extends TestCase
     public function itShouldResolveNamedArgumentsReadyToSplat(): void
     {
         $service = new SampleService();
-        $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
+        $resolver = new ContainerResolver(new ArrayContainer([SampleService::class => $service]));
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), ['value' => 'hi', 'number' => 7]);
         $consumer = (new ReflectionClass(ServiceConsumer::class))->newInstanceArgs($args);
