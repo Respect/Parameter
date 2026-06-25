@@ -145,18 +145,6 @@ final class ContainerResolverTest extends TestCase
     }
 
     #[Test]
-    public function itShouldKeepDeprecatedResolveNamedAsAnAliasOfResolve(): void
-    {
-        $resolver = new ContainerResolver(new ArrayContainer([SampleService::class => new SampleService()]));
-        $constructor = $this->constructorOf(ServiceConsumer::class);
-
-        self::assertSame(
-            $resolver->resolve($constructor, ['value' => 'explicit']),
-            $resolver->resolveNamed($constructor, ['value' => 'explicit']),
-        );
-    }
-
-    #[Test]
     public function itShouldExpandVariadicArguments(): void
     {
         $service = new SampleService();
