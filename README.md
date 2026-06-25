@@ -10,15 +10,18 @@ composer require respect/parameter
 
 ## Usage
 
-### Resolve from a container
+### Resolve arguments
 
 For each parameter the resolver tries, in order:
 
-1. Positional argument of matching **type**
-2. Container match by **type** (non-builtin)
-3. Next **positional argument**
-4. **Default value**
-5. `null`
+1. An explicit **named** argument (keyed by parameter name)
+2. A **positional** argument already matching the parameter **type**
+3. The **container**, matched by **type** (non-builtin)
+4. The next **positional** argument
+5. The parameter's **default value**
+6. `null`
+
+A trailing **variadic** parameter receives a matching named argument (if any) followed by every remaining positional argument.
 
 ```php
 use Respect\Parameter\Resolver;
@@ -29,25 +32,40 @@ function notify(Mailer $mailer, Logger $logger, string $to, string $subject = 'H
 
 $resolver = new Resolver($container);
 $args = $resolver->resolve(new ReflectionFunction('notify'), ['bob@example.com']);
-// ['mailer' => Mailer, 'logger' => Logger, 'to' => 'bob@example.com', 'subject' => 'Hi']
+// [Mailer, Logger, 'bob@example.com', 'Hi']  — ordered, ready to splat
 ```
 
-Results are keyed by parameter name, so you can spread them with named arguments:
+The result is an ordered list, so spread it straight into the call or constructor:
 
 ```php
 notify(...$args);
+// or
+$reflection->newInstanceArgs($args);
 ```
 
-### Resolve with named arguments
+### Named arguments
 
-When arguments are keyed by name (e.g. from configuration):
+`resolve()` accepts named arguments too — keyed by parameter name, taking precedence over the
+container; the remaining parameters are filled by type and defaults:
 
 ```php
-$args = $resolver->resolveNamed(
-    $constructor,
-    ['username' => 'admin', 'password' => 'secret'],
-);
-// Named args take precedence, gaps filled from container by name and type
+$args = $resolver->resolve($constructor, ['username' => 'admin']);
+```
+
+### Bind to the interface
+
+Type-hint `ParameterResolver` (the `resolve()` contract) rather than the concrete `Resolver` to stay
+decoupled from the implementation:
+
+```php
+use Respect\Parameter\ParameterResolver;
+
+final class Factory
+{
+    public function __construct(private ParameterResolver $resolver)
+    {
+    }
+}
 ```
 
 ### Reflect any callable
@@ -72,12 +90,13 @@ Resolver::acceptsType($reflection, LoggerInterface::class); // true/false
 
 ## API
 
-| Method                                  | Type     | Description                                          |
-|-----------------------------------------|----------|------------------------------------------------------|
-| `resolve($reflection, $positional)`     | instance | Resolve parameters from positional args + container. Returns `array<string, mixed>` keyed by parameter name |
-| `resolveNamed($reflection, $named)`     | instance | Resolve from named args (priority) + container. Returns `array<string, mixed>` keyed by parameter name     |
-| `reflectCallable($callable)`            | static   | Any callable to `ReflectionFunctionAbstract`         |
-| `acceptsType($reflection, $type)`       | static   | Check if any parameter accepts a type                |
+| Method                                  | Type     | Description                                                                                       |
+|-----------------------------------------|----------|---------------------------------------------------------------------------------------------------|
+| `resolve($reflection, $arguments)`      | instance | Resolve named/positional arguments + container into an ordered `list<mixed>`, expanding variadics |
+| `reflectCallable($callable)`            | static   | Any callable to `ReflectionFunctionAbstract`                                                      |
+| `acceptsType($reflection, $type)`       | static   | Check if any parameter accepts a type                                                             |
+
+`Resolver` implements `ParameterResolver`.
 
 ## License
 

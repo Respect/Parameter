@@ -16,14 +16,22 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionMethod;
+use Respect\Parameter\ParameterResolver;
 use Respect\Parameter\Resolver;
 use Respect\Parameter\Test\Fixtures\ArrayContainer;
 use Respect\Parameter\Test\Fixtures\SampleService;
 use Respect\Parameter\Test\Fixtures\ServiceConsumer;
+use Respect\Parameter\Test\Fixtures\VariadicConsumer;
 
 #[CoversClass(Resolver::class)]
 final class ResolverTest extends TestCase
 {
+    #[Test]
+    public function itShouldImplementParameterResolver(): void
+    {
+        self::assertInstanceOf(ParameterResolver::class, new Resolver(new ArrayContainer()));
+    }
+
     #[Test]
     public function itShouldResolveByType(): void
     {
@@ -32,9 +40,7 @@ final class ResolverTest extends TestCase
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), ['hello']);
 
-        self::assertSame($service, $args['service']);
-        self::assertSame('hello', $args['value']);
-        self::assertSame(42, $args['number']);
+        self::assertSame([$service, 'hello', 42], $args);
     }
 
     #[Test]
@@ -46,8 +52,8 @@ final class ResolverTest extends TestCase
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), [$explicit, 'hello']);
 
-        self::assertSame($explicit, $args['service']);
-        self::assertSame('hello', $args['value']);
+        self::assertSame($explicit, $args[0]);
+        self::assertSame('hello', $args[1]);
     }
 
     #[Test]
@@ -57,7 +63,7 @@ final class ResolverTest extends TestCase
 
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), ['positional']);
 
-        self::assertSame('positional', $args['service']);
+        self::assertSame('positional', $args[0]);
     }
 
     #[Test]
@@ -139,35 +145,66 @@ final class ResolverTest extends TestCase
     }
 
     #[Test]
-    public function itShouldResolveNamedArgsWithPrecedenceOverContainer(): void
+    public function itShouldKeepDeprecatedResolveNamedAsAnAliasOfResolve(): void
     {
-        $service = new SampleService();
-        $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
+        $resolver = new Resolver(new ArrayContainer([SampleService::class => new SampleService()]));
+        $constructor = $this->constructorOf(ServiceConsumer::class);
 
-        $args = $resolver->resolveNamed(
-            $this->constructorOf(ServiceConsumer::class),
-            ['value' => 'explicit'],
+        self::assertSame(
+            $resolver->resolve($constructor, ['value' => 'explicit']),
+            $resolver->resolveNamed($constructor, ['value' => 'explicit']),
         );
-
-        self::assertSame($service, $args['service']);
-        self::assertSame('explicit', $args['value']);
-        self::assertSame(42, $args['number']);
     }
 
     #[Test]
-    public function itShouldResolveNamedArgsWithEmptyNamedArray(): void
+    public function itShouldExpandVariadicArguments(): void
     {
         $service = new SampleService();
         $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
 
-        $args = $resolver->resolveNamed(
-            $this->constructorOf(ServiceConsumer::class),
-            [],
-        );
+        $args = $resolver->resolve($this->constructorOf(VariadicConsumer::class), [1, 2, 3]);
 
-        self::assertSame($service, $args['service']);
-        self::assertNull($args['value']);
-        self::assertSame(42, $args['number']);
+        self::assertSame([$service, 1, 2, 3], $args);
+    }
+
+    #[Test]
+    public function itShouldSupplyVariadicElementByName(): void
+    {
+        $service = new SampleService();
+        $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
+
+        $args = $resolver->resolve($this->constructorOf(VariadicConsumer::class), ['numbers' => 9]);
+        $consumer = (new ReflectionClass(VariadicConsumer::class))->newInstanceArgs($args);
+
+        self::assertSame([$service, 9], $args);
+        self::assertSame([9], $consumer->numbers);
+    }
+
+    #[Test]
+    public function itShouldResolveArgumentsReadyToSplatIntoVariadicConstructor(): void
+    {
+        $service = new SampleService();
+        $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
+
+        $args = $resolver->resolve($this->constructorOf(VariadicConsumer::class), [1, 2, 3]);
+        $consumer = (new ReflectionClass(VariadicConsumer::class))->newInstanceArgs($args);
+
+        self::assertSame($service, $consumer->service);
+        self::assertSame([1, 2, 3], $consumer->numbers);
+    }
+
+    #[Test]
+    public function itShouldResolveNamedArgumentsReadyToSplat(): void
+    {
+        $service = new SampleService();
+        $resolver = new Resolver(new ArrayContainer([SampleService::class => $service]));
+
+        $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), ['value' => 'hi', 'number' => 7]);
+        $consumer = (new ReflectionClass(ServiceConsumer::class))->newInstanceArgs($args);
+
+        self::assertSame($service, $consumer->service);
+        self::assertSame('hi', $consumer->value);
+        self::assertSame(7, $consumer->number);
     }
 
     /** @param class-string $class */

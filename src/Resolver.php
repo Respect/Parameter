@@ -19,110 +19,122 @@ use ReflectionNamedType;
 use ReflectionParameter;
 
 use function array_key_exists;
+use function array_values;
 use function assert;
 use function count;
 use function is_a;
 use function is_array;
+use function is_int;
 use function is_object;
 use function is_string;
 use function str_contains;
 
 /**
- * Resolves function/constructor parameters from a PSR-11 container.
+ * Resolves the arguments to call a function or constructor with, autowiring any parameter that is
+ * not supplied from a PSR-11 container by type.
  *
- * For each parameter, tries by type (non-builtin) against the container.
- * Falls through to positional arguments, then defaults.
+ * The result is always an ordered list ready to splat (`...$args` / `newInstanceArgs`), with
+ * variadic parameters expanded.
  */
-final readonly class Resolver
+final readonly class Resolver implements ParameterResolver
 {
     public function __construct(private ContainerInterface $container)
     {
     }
 
     /**
-     * Resolve parameters for a function/constructor from positional arguments.
+     * Resolve the arguments for a function/constructor.
      *
-     * @param array<int, mixed> $arguments User-provided positional arguments
+     * Provided arguments may be positional (int-keyed) or named (string-keyed by parameter name).
+     * For each parameter, in order: an explicit named argument wins; then a positional argument
+     * already matching the parameter type; then the container by type; then the next positional
+     * argument; then the parameter default; otherwise null. A trailing variadic parameter receives
+     * a matching named argument (if any) followed by every remaining positional argument.
      *
-     * @return array<int, mixed>|array<string, mixed> Resolved arguments keyed by parameter name
+     * @param array<int|string, mixed> $arguments
+     *
+     * @return list<mixed>
      */
     public function resolve(ReflectionFunctionAbstract $reflection, array $arguments): array
     {
-        $params = $reflection->getParameters();
-        if ($params === []) {
-            return $arguments;
+        $parameters = $reflection->getParameters();
+        if ($parameters === []) {
+            return array_values($arguments);
         }
 
-        $resolvedArgs = [];
-        $argIndex = 0;
-        $argCount = count($arguments);
-
-        foreach ($params as $param) {
-            $paramName = $param->getName();
-            $typeName = self::typeName($param);
-
-            if ($typeName !== null && isset($arguments[$argIndex]) && $arguments[$argIndex] instanceof $typeName) {
-                $resolvedArgs[$paramName] = $arguments[$argIndex++];
-
-                continue;
-            }
-
-            if ($typeName !== null && $this->container->has($typeName)) {
-                $resolvedArgs[$paramName] = $this->container->get($typeName);
-
-                continue;
-            }
-
-            if ($argIndex < $argCount) {
-                $resolvedArgs[$paramName] = $arguments[$argIndex++];
-            } elseif ($param->isDefaultValueAvailable()) {
-                $resolvedArgs[$paramName] = $param->getDefaultValue();
+        $positional = [];
+        $named = [];
+        foreach ($arguments as $key => $value) {
+            if (is_int($key)) {
+                $positional[] = $value;
             } else {
-                $resolvedArgs[$paramName] = null;
+                $named[$key] = $value;
             }
         }
 
-        return $resolvedArgs;
+        $resolved = [];
+        $index = 0;
+        $count = count($positional);
+
+        foreach ($parameters as $param) {
+            $name = $param->getName();
+
+            if ($param->isVariadic()) {
+                if (array_key_exists($name, $named)) {
+                    $resolved[] = $named[$name];
+                }
+
+                while ($index < $count) {
+                    $resolved[] = $positional[$index++];
+                }
+
+                break;
+            }
+
+            if (array_key_exists($name, $named)) {
+                $resolved[] = $named[$name];
+
+                continue;
+            }
+
+            $type = self::typeName($param);
+
+            if ($type !== null && isset($positional[$index]) && $positional[$index] instanceof $type) {
+                $resolved[] = $positional[$index++];
+
+                continue;
+            }
+
+            if ($type !== null && $this->container->has($type)) {
+                $resolved[] = $this->container->get($type);
+
+                continue;
+            }
+
+            if ($index < $count) {
+                $resolved[] = $positional[$index++];
+            } elseif ($param->isDefaultValueAvailable()) {
+                $resolved[] = $param->getDefaultValue();
+            } else {
+                $resolved[] = null;
+            }
+        }
+
+        return $resolved;
     }
 
     /**
-     * Resolve parameters from explicit named args + container.
-     * Named args take precedence over container values.
+     * Resolve arguments, with named arguments taking precedence over the container.
      *
-     * @param array<string, mixed> $namedArgs
+     * @deprecated Use {@see resolve()} instead; it now handles named arguments directly.
      *
-     * @return array<string, mixed> Resolved arguments keyed by parameter name
+     * @param array<int|string, mixed> $arguments
+     *
+     * @return list<mixed>
      */
-    public function resolveNamed(ReflectionFunctionAbstract $reflection, array $namedArgs): array
+    public function resolveNamed(ReflectionFunctionAbstract $reflection, array $arguments): array
     {
-        $params = $reflection->getParameters();
-        if ($params === []) {
-            return [];
-        }
-
-        $resolvedArgs = [];
-
-        foreach ($params as $param) {
-            $paramName = $param->getName();
-
-            if (array_key_exists($paramName, $namedArgs)) {
-                $resolvedArgs[$paramName] = $namedArgs[$paramName];
-
-                continue;
-            }
-
-            $typeName = self::typeName($param);
-
-            if ($typeName !== null && $this->container->has($typeName)) {
-                $resolvedArgs[$paramName] = $this->container->get($typeName);
-
-                continue;
-            }
-
-            $resolvedArgs[$paramName] = $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null;
-        }
-
-        return $resolvedArgs;
+        return $this->resolve($reflection, $arguments);
     }
 
     /** Reflect any callable into its ReflectionFunctionAbstract. */
