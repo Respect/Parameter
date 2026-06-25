@@ -52,6 +52,36 @@ container; the remaining parameters are filled by type and defaults:
 $args = $resolver->resolve($constructor, ['username' => 'admin']);
 ```
 
+### Memoize parameter introspection
+
+Reflection is expensive. The resolver accepts an optional PSR-16 cache as its second argument;
+when supplied, the per-parameter spec (name, type, variadic flag, default-available flag) is
+memoized under a stable key derived from the callable identity (`FQCN::method` for methods,
+`fn:name` for named functions), so repeated `resolve()` calls on different
+`ReflectionMethod` / `ReflectionFunction` instances of the same callable share one spec and
+skip `ReflectionParameter` method calls entirely. Closures and invocable objects have no stable
+identity across reflections and bypass the cache.
+
+```php
+use Respect\Parameter\Resolver;
+
+$resolver = new Resolver($container, $psr16Cache);
+```
+
+The package ships with a ready-to-use in-memory PSR-16 implementation so you get the memoization
+benefit with no external dependency:
+
+```php
+use Respect\Parameter\InMemoryCache;
+use Respect\Parameter\Resolver;
+
+$resolver = new Resolver($container, new InMemoryCache());
+```
+
+`InMemoryCache` is a process-local array-backed cache: entries live for the lifetime of the
+cache instance and are not shared across processes. For longer-lived or shared caching, pass any
+real PSR-16 implementation (Symfony Cache, PSR-16 adapter over APCu, etc.).
+
 ### Bind to the interface
 
 Type-hint `ParameterResolver` (the `resolve()` contract) rather than the concrete `Resolver` to stay
@@ -97,6 +127,9 @@ Resolver::acceptsType($reflection, LoggerInterface::class); // true/false
 | `acceptsType($reflection, $type)`       | static   | Check if any parameter accepts a type                                                             |
 
 `Resolver` implements `ParameterResolver`.
+
+`InMemoryCache` implements `Psr\SimpleCache\CacheInterface` and is the bundled zero-dependency
+PSR-16 cache for memoizing the resolver's parameter spec.
 
 ## License
 
