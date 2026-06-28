@@ -131,8 +131,6 @@ final readonly class ContainerResolver implements Resolver
         }
 
         if (is_array($callable)) {
-            /** @var array{object|class-string, string} $callable */ // phpcs:ignore SlevomatCodingStandard.Commenting.InlineDocCommentDeclaration.MissingVariable
-
             return new ReflectionMethod(...$callable);
         }
 
