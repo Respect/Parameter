@@ -13,6 +13,7 @@ namespace Respect\Parameter\Test\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionMethod;
@@ -41,6 +42,65 @@ final class ContainerResolverTest extends TestCase
         $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), ['hello']);
 
         self::assertSame([$service, 'hello', 42], $args);
+    }
+
+    #[Test]
+    public function itShouldResolveByTypeDespiteOrder(): void
+    {
+        $service = new SampleService();
+        $anotherService = new SampleService();
+        $container = new ArrayContainer([
+            SampleService::class => $service,
+            'zoo' => $anotherService,
+        ]);
+        $resolver = new ContainerResolver($container);
+
+        $args = $resolver->resolve($this->constructorOf(ServiceConsumer::class), ['hello', $container->get('zoo')]);
+
+        self::assertSame([$anotherService, 'hello', 42], $args);
+    }
+
+    #[Test]
+    public function itShouldResolveTypedArgumentDeclaredAfterScalar(): void
+    {
+        $service = new SampleService();
+        $resolver = new ContainerResolver(new ArrayContainer());
+        $fn = new ReflectionFunction(
+            static fn(string $value, SampleService $service): array => [$value, $service],
+        );
+
+        $args = $resolver->resolve($fn, [$service, 'hello']);
+
+        self::assertSame(['hello', $service], $args);
+    }
+
+    #[Test]
+    public function itShouldResolveMultipleTypedArgumentsOutOfOrder(): void
+    {
+        $service = new SampleService();
+        $container = new ArrayContainer();
+        $resolver = new ContainerResolver($container);
+        $fn = new ReflectionFunction(
+            static fn(SampleService $service, ContainerInterface $c, string $value): array => [$service, $c, $value],
+        );
+
+        $args = $resolver->resolve($fn, ['hello', $container, $service]);
+
+        self::assertSame([$service, $container, 'hello'], $args);
+    }
+
+    #[Test]
+    public function itShouldNotConsumeScalarForUnfilledTypedParameter(): void
+    {
+        $service = new SampleService();
+        $resolver = new ContainerResolver(new ArrayContainer());
+        $fn = new ReflectionFunction(
+            static fn(int $number, SampleService $service, string $value): array => [$number, $service, $value],
+        );
+
+        $args = $resolver->resolve($fn, [7, 'hello', $service]);
+
+        self::assertSame([7, $service, 'hello'], $args);
     }
 
     #[Test]
