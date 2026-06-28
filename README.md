@@ -15,13 +15,13 @@ composer require respect/parameter
 For each parameter the resolver tries, in order:
 
 1. An explicit **named** argument (keyed by parameter name)
-2. A **positional** argument already matching the parameter **type**
+2. An argument matching the parameter **type**
 3. The **container**, matched by **type** (non-builtin)
-4. The next **positional** argument
+4. The next remaining **positional** argument
 5. The parameter's **default value**
 6. `null`
 
-A trailing **variadic** parameter receives a matching named argument (if any) followed by every remaining positional argument.
+Typed parameters are bound first (steps 1–3), so a positional object is matched by type wherever it sits and an earlier untyped parameter can't consume it; untyped parameters then take the leftover positional arguments in declaration order (step 4). A trailing **variadic** parameter receives a matching named argument (if any) followed by every remaining positional argument.
 
 ```php
 use Respect\Parameter\ContainerResolver;
@@ -41,6 +41,20 @@ The result is an ordered list, so spread it straight into the call or constructo
 notify(...$args);
 // or
 $reflection->newInstanceArgs($args);
+```
+
+### Type-first matching
+
+A positional object is bound to the parameter that declares its type, wherever each sits in the list —
+so an untyped parameter never accidentally swallows it:
+
+```php
+function notify(string $subject, Mailer $mailer) {
+    // ...
+}
+
+$args = $resolver->resolve(new ReflectionFunction('notify'), [$mailer, 'Hello']);
+// ['Hello', Mailer]  — $mailer matched by type, 'Hello' fell through to $subject
 ```
 
 ### Named arguments
